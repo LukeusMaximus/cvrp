@@ -25,11 +25,16 @@ class cvrp_solver:
             cap = self.capacity
             cost = self.__distance(depot_id, genome[0])
             cap -= self.nodes[genome[0]][2]
+            previous_depot_visit = 0
             for i in xrange(len(genome)-1):
                 if cap - self.nodes[genome[i+1]][2] < 0:
+                    delivered = sum([nodes[x][2] for x in genome[previous_depot_visit:i+1]])
+                    assert delivered < self.capacity
+                    
                     cost += self.__distance(genome[i], depot_id)
                     cap = self.capacity
                     cost += self.__distance(depot_id, genome[i+1])
+                    previous_depot_visit = i+1
                 else:
                     cost += self.__distance(genome[i], genome[i+1])
                 cap -= self.nodes[genome[i+1]][2]
