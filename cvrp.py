@@ -1,6 +1,6 @@
 import sys
 import math
-from random import shuffle
+from random import shuffle, uniform
 
 class cvrp_solver:
     def __init__(self, nodes, depot_id, capacity):
@@ -15,34 +15,44 @@ class cvrp_solver:
         genes.remove(depot_id)
         self.population = {}
         for i in xrange(size):
-            dna = genes
-            shuffle(dna)
-            self.population[i] = (dna, 0)
-            print self.population[i]
+            shuffle(genes)
+            self.population[i] = (list(genes), 0)
     def calculate_fitnesses(self):
-        for x in self.population.keys():
+        keys = self.population.keys()
+        for x in keys:
             genome = self.population[x][0]
-            cap = self.capacity
             cost = self.__distance(depot_id, genome[0])
-            cap -= self.nodes[genome[0]][2]
-            previous_depot_visit = 0
+            delivered = self.nodes[genome[0]][2]
             for i in xrange(len(genome)-1):
-                if cap - self.nodes[genome[i+1]][2] < 0:
-                    delivered = sum([nodes[x][2] for x in genome[previous_depot_visit:i+1]])
-                    assert delivered < self.capacity
-                    
+                if delivered + self.nodes[genome[i+1]][2] > self.capacity:
                     cost += self.__distance(genome[i], depot_id)
-                    cap = self.capacity
                     cost += self.__distance(depot_id, genome[i+1])
-                    previous_depot_visit = i+1
+                    delivered = self.nodes[genome[i+1]][2]
                 else:
                     cost += self.__distance(genome[i], genome[i+1])
-                cap -= self.nodes[genome[i+1]][2]
-            self.population[x] = genome, cost
-        print self.population
+                    delivered += self.nodes[genome[i+1]][2]
+            cost += self.__distance(genome[-1], depot_id)
+            self.population[x] = (genome, 1.0/cost)
+        print [(x, self.population[x][1]) for x in self.population]
     def crossover(self):
-        #Also selects parents
-        pass
+        total_fitnesses = sum([self.population[x][1] for x in self.population])
+        new_population = {}
+        keys = self.population.keys()
+        for i in xrange(len(self.population)):
+            a = uniform(0, total_fitnesses)
+            j = 0
+            while a > self.population[keys[j]][1]: 
+                a -= self.population[keys[j]][1]
+                j += 1
+            parent1 = self.population[keys[j]]
+            a = uniform(0, total_fitnesses)
+            j = 0
+            while a > self.population[keys[j]][1]: 
+                a -= self.population[keys[j]][1]
+                j += 1
+            parent2 = self.population[keys[j]]
+            print parent1[1], parent2[1]
+        
     def mutate(self):
         pass    
 
@@ -80,8 +90,9 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         nodes, depot_id, capacity = parse_file(sys.argv[1])
         solver = cvrp_solver(nodes, depot_id, capacity)
-        solver.initialise_population(1)
+        solver.initialise_population(10)
         solver.calculate_fitnesses()
+        solver.crossover()
     else:
         print "Incorrcect number of arguments.\nUsage: \"python cvrp.py <vrp_file>\""
 
