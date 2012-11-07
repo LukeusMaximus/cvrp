@@ -1,6 +1,6 @@
 import sys
 import math
-from random import shuffle, uniform
+from random import shuffle, uniform, randint
 
 class cvrp_solver:
     def __init__(self, nodes, depot_id, capacity):
@@ -39,6 +39,7 @@ class cvrp_solver:
         new_population = {}
         keys = self.population.keys()
         for i in xrange(len(self.population)):
+            # Select parents via proportional roulette
             a = uniform(0, total_fitnesses)
             j = 0
             while a > self.population[keys[j]][1]: 
@@ -52,7 +53,13 @@ class cvrp_solver:
                 j += 1
             parent2 = self.population[keys[j]]
             print parent1[1], parent2[1]
-        
+            # Crossover
+            child1_dna = parent1[0]
+            start_crossover_cycle = randint(0, len(child1_dna)-1)
+            tracer = start_crossover_cycle
+            while parent1[start_crossover_cycle] != parent2[tracer]:
+                pass
+            
     def mutate(self):
         pass    
 
