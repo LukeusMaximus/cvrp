@@ -14,25 +14,26 @@ def find_in_list(l, x):
     return -1    
     
 class cvrp_solver:
-    def __init__(self):
+    def __init__(self, pop):
         self.dimension = 76
         self.depot_id = 1
         self.capacity = 220
         self.mutate_rate = 0.01
         self.best = None
+        self.population_size = pop
+        self.__initialise_population()
         
     def __choose_random_parent(self):
-        inverse_costs = {}
-        for x in self.population:
-            inverse_costs[x] = 1/self.population[x][1]
+        inverse_costs = [0] * len(self.population)
+        for i in xrange(len(self.population)):
+            inverse_costs[i] = 1/self.population[i][1]
         total_fitnesses = sum([inverse_costs[x] for x in inverse_costs])
         a = uniform(0, total_fitnesses)
         j = 0
-        keys = inverse_costs.keys()
-        while a > inverse_costs[keys[j]]: 
-            a -= inverse_costs[keys[j]]
+        while a > inverse_costs[j]: 
+            a -= inverse_costs[j]
             j += 1
-        return self.population[keys[j]]
+        return self.population[j]
         
     def __assess_fitness(self, genome):
         cost = distances[self.depot_id][genome[0]]
@@ -51,19 +52,19 @@ class cvrp_solver:
         return cost
         
     def __assess_population_fitness(self):
-        for x in self.population:
-            self.population[x] = (self.population[x][0], self.__assess_fitness(self.population[x][0]))
+        for i in xrange(len(self.population)):
+            self.population[i] = (self.population[i][0], self.__assess_fitness(self.population[i][0]))
             
-    def initialise_population(self, size):
+    def __initialise_population(self):
         genes = [x for x in xrange(2, self.dimension+1)]
         self.population = []
-        for i in xrange(size):
+        for i in xrange(self.population_size):
             shuffle(genes)
             dna = list(genes)
             self.population.append((dna, self.__assess_fitness(dna)))
         
     def evolve(self):
-        new_population = {}
+        new_population = []
         
         # Crossover
         for i in xrange(len(self.population)):
@@ -92,7 +93,7 @@ class cvrp_solver:
             for j in xrange(len(child_dna)):
                 assert child_dna[j] == parent1[0][j] or child_dna[j] == parent2[0][j]
             # Add to new population
-            new_population[i] = (child_dna, 0)
+            new_population.append((child_dna, 0))
             
              # cyclic crossover for second direction
             child_dna = list(parent2[0])
@@ -105,7 +106,7 @@ class cvrp_solver:
             assert not (-1 in child_dna)
             for j in xrange(len(child_dna)):
                 assert child_dna[j] == parent1[0][j] or child_dna[j] == parent2[0][j]
-            new_population[i] = (child_dna, 0)
+            new_population.append((child_dna, 0))
             
             
         # Mutate
@@ -117,19 +118,19 @@ class cvrp_solver:
             # Perform cyclic mutation
             gene = genome.pop(randint(0, len(genome)-1))
             genome.insert(randint(0, len(genome)-1), gene)
-            new_population[i] = (child_dna, 0)
+            new_population.append((child_dna, 0))
 
-        # Replace old population and assess its fitness            
+        # Replace old population and assess its fitness        
         self.population = new_population
         self.__assess_population_fitness()
+        # TODO cull population back down to self.population wrt. fitness
     
     def print_poplation():
         for x in self.population:
             print self.population[x]
 
 if __name__ == "__main__":
-    solver = cvrp_solver()
-    solver.initialise_population(10)
+    solver = cvrp_solver(10)
     for i in xrange(1):
         solver.evolve()
         print solver.best[1]
