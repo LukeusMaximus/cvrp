@@ -131,7 +131,16 @@ class cvrp_solver:
             genome.insert(randint(0, len(genome)-1), gene)
             new_population.append((genome, self.__assess_fitness(genome)))
             
+        #if self.generation % 10 == 0:
+            #print "\nold"
+            #print [x[1] for x in self.population]
+            #print "new"
+            #print [x[1] for x in new_population]
+        # Add children to the old population and assess their fitness        
+        new_population += self.population
+        
         # Mutate recurrences
+        self.population = []
         for x in new_population:
             if x in self.population:
                 genome = x[0]
@@ -140,14 +149,7 @@ class cvrp_solver:
                 self.population.append((genome, self.__assess_fitness(genome)))
             else:
                 self.population.append(x)
-
-        #if self.generation % 10 == 0:
-            #print "\nold"
-            #print [x[1] for x in self.population]
-            #print "new"
-            #print [x[1] for x in new_population]
-        # Add children to the old population and assess their fitness        
-        self.population += new_population
+        
         # Cull the population in survival of the fittest        
         self.population = sorted(self.population, key=lambda x : x[1])[:self.population_size]
         self.generation += 1
@@ -202,7 +204,7 @@ class cvrp_solver:
             best_file.write(s + "\n")
         best_file.close()
         
-if __name__ == "__main__":
+def normal_mode():
     solver = cvrp_solver(10)
     for i in xrange(10000):
         solver.evolve()
@@ -211,4 +213,36 @@ if __name__ == "__main__":
             solver.print_best_to_file()
     print solver.population[0]
     solver.print_best_to_file()
+        
+def combo_mode():
+    print "Start with multi solver"
+    solvers = []
+    for i in xrange(10):
+        solvers.append(cvrp_solver(10))
+    
+    for i in xrange(5000):
+        for x in solvers:
+            x.evolve()
+            if x.generation % 100 == 0:
+                x.print_stats()
+                x.print_best_to_file()
+        if solvers[0].generation % 100 == 0:
+            print "\n"
+                
+    print "Reduce to single solver"
+    solver = cvrp_solver(10)
+    solver.population = []
+    for x in solvers:
+        solver.population += x.population
+    
+    for i in xrange(5000):
+        solver.evolve()
+        if solver.generation % 100 == 0:
+            solver.print_stats()
+            solver.print_best_to_file()
+    print solver.population[0]
+    solver.print_best_to_file()
+        
+if __name__ == "__main__":
+    combo_mode()
     
