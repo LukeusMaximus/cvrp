@@ -1,6 +1,8 @@
 import sys
 import math
 from random import shuffle, uniform, randint, choice
+import pickle
+import time
 
 from distances import distances
 from capacities import capacities
@@ -18,10 +20,17 @@ class cvrp_solver:
         self.dimension = 76
         self.depot_id = 1
         self.capacity = 220
-        self.mutate_rate = 0.01
-        self.best = None
+        self.mutate_rate = 0.0001
         self.population_size = pop
-        self.__initialise_population()
+        self.generation = 0
+        # Initialise the population
+        genes = [x for x in xrange(2, self.dimension+1)]
+        self.population = []
+        for i in xrange(self.population_size):
+            shuffle(genes)
+            dna = list(genes)
+            self.population.append((dna, self.__assess_fitness(dna)))
+        self.population = sorted(self.population, key=lambda x : x[1])
         
     def __choose_random_parent(self):
         inverse_costs = [0] * len(self.population)
@@ -46,21 +55,7 @@ class cvrp_solver:
                 cost += distances[genome[i]][genome[i+1]]
                 delivered += capacities[genome[i+1]]
         cost += distances[genome[-1]][self.depot_id]
-        if self.best == None or cost < self.best[1]:
-            self.best = (genome, cost)
         return cost
-        
-    def __assess_population_fitness(self):
-        for i in xrange(len(self.population)):
-            self.population[i] = (self.population[i][0], self.__assess_fitness(self.population[i][0]))
-            
-    def __initialise_population(self):
-        genes = [x for x in xrange(2, self.dimension+1)]
-        self.population = []
-        for i in xrange(self.population_size):
-            shuffle(genes)
-            dna = list(genes)
-            self.population.append((dna, self.__assess_fitness(dna)))
         
     def evolve(self):
         new_population = []
@@ -70,14 +65,18 @@ class cvrp_solver:
             # Select parents via proportional roulette
             parent1 = self.population[i]
             parent2 = self.__choose_random_parent()
+            
+            '''
             while parent2 == parent1:
                 # Ensure no asexual breeding
                 parent2 = self.__choose_random_parent()
-            
+            '''
             start_crossover_cycle = randint(0, len(parent1[0])-1)
+            '''
             while parent1[0][start_crossover_cycle] == parent2[0][start_crossover_cycle]:
                 # Make sure the crossover would actually change something
                 start_crossover_cycle = randint(0, len(parent1[0])-1)
+            '''
             
             # cyclic crossover for first direction
             child_dna = list(parent1[0])
@@ -91,10 +90,12 @@ class cvrp_solver:
             assert not (-1 in child_dna)
             for j in xrange(len(child_dna)):
                 assert child_dna[j] == parent1[0][j] or child_dna[j] == parent2[0][j]
+            '''
             # If we already have this genome in the population...
             if child_dna in [x[0] for x in self.population + new_population]:
                 # The child is dunked in radioactive waste and has its genes shuffled
                 shuffle(child_dna)
+            '''
             # Add it to the population
             new_population.append((child_dna, self.__assess_fitness(child_dna)))
             
@@ -109,14 +110,19 @@ class cvrp_solver:
             assert not (-1 in child_dna)
             for j in xrange(len(child_dna)):
                 assert child_dna[j] == parent1[0][j] or child_dna[j] == parent2[0][j]
+            '''
             if child_dna in [x[0] for x in self.population + new_population]:
                 shuffle(child_dna)
+            '''
             new_population.append((child_dna, self.__assess_fitness(child_dna)))
-            
             
         # Mutate
         total_genes = sum([len(x[0]) for x in new_population])
-        num_mutations = int(self.mutate_rate * total_genes)
+        fitness_range = self.population[-1][1] - self.population[0][1]
+        if fitness_range == 0:
+            fitness_range = 1
+        diversity_reinvigorator = self.population[0][1] / fitness_range
+        num_mutations = int(self.mutate_rate * total_genes * diversity_reinvigorator)
         for i in xrange(num_mutations):
             # Select a random genome to mutate
             genome = list(choice(new_population)[0])
@@ -124,15 +130,27 @@ class cvrp_solver:
             gene = genome.pop(randint(0, len(genome)-1))
             genome.insert(randint(0, len(genome)-1), gene)
             new_population.append((genome, self.__assess_fitness(genome)))
+            
+        # Mutate recurrences
+        for x in new_population:
+            if x in self.population:
+                genome = x[0]
+                gene = genome.pop(randint(0, len(genome)-1))
+                genome.insert(randint(0, len(genome)-1), gene)
+                self.population.append((genome, self.__assess_fitness(genome)))
+            else:
+                self.population.append(x)
 
-        #print "\nold"
-        #print [x[1] for x in self.population]
-        #print "new"
-        #print [x[1] for x in new_population]
+        #if self.generation % 10 == 0:
+            #print "\nold"
+            #print [x[1] for x in self.population]
+            #print "new"
+            #print [x[1] for x in new_population]
         # Add children to the old population and assess their fitness        
         self.population += new_population
         # Cull the population in survival of the fittest        
         self.population = sorted(self.population, key=lambda x : x[1])[:self.population_size]
+        self.generation += 1
     
     def print_poplation(self):
         for x in self.population:
@@ -142,16 +160,55 @@ class cvrp_solver:
         # Assumes the population is sorted
         best = self.population[0][1]
         worst = self.population[-1][1]
-        mean = sum([x[1] for x in self.population]) / len(self.population)
         val_range = worst - best
-        median = self.population[(len(self.population)/2)-1][1]
-        print "best:", best, "worst:", worst, "range:", val_range, "mean:", mean, "median:", median
-
+        print str(self.generation) + ":", "best:", best, "worst:", worst, "range:", val_range
+        
+    def print_best_to_file(self):
+        genome = self.population[0][0]
+        routes = []
+        current_route = [1]
+        delivered = 0
+        for i in xrange(len(genome)):
+            if delivered + capacities[genome[i]] > self.capacity:
+                current_route.append(1)
+                routes.append(current_route)
+                current_route = [1]
+                delivered = 0
+            current_route.append(genome[i])
+            delivered += capacities[genome[i]]
+        current_route.append(1)
+        routes.append(current_route)
+        
+        costs = [0] * len(routes)
+        for i in xrange(len(routes)):
+            cost = 0
+            for j in xrange(len(routes[i])-1):
+                cost += distances[routes[i][j]][routes[i][j+1]]
+            costs[i] = cost
+        assert abs(sum(costs) - self.population[0][1]) < 0.000001
+        
+        cost_str = str(sum(costs))
+        dpp = cost_str.find(".")
+        cost_str = cost_str[:dpp+4]
+        best_file = open("solutions/best_sol_" + cost_str, "w")
+        best_file.write("login lm9131\n")
+        best_file.write("cost " + cost_str + "\n")
+        for i in xrange(len(routes)): 
+            s = ""
+            for x in routes[i]:
+                if s != "":
+                    s += "->"
+                s += str(x)
+            best_file.write(s + "\n")
+        best_file.close()
+        
 if __name__ == "__main__":
     solver = cvrp_solver(10)
-    for i in xrange(1000):
+    for i in xrange(10000):
         solver.evolve()
-        if i % 10 == 0:
+        if solver.generation % 100 == 0:
             solver.print_stats()
-    print solver.best
+            solver.print_best_to_file()
+    print solver.population[0]
+    solver.print_best_to_file()
     
