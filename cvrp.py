@@ -20,7 +20,7 @@ class cvrp_solver:
         self.dimension = 76
         self.depot_id = 1
         self.capacity = 220
-        self.mutate_rate = 0.0001
+        self.mutate_rate = 1
         self.population_size = pop
         self.generation = 0
         # Initialise the population
@@ -31,17 +31,6 @@ class cvrp_solver:
             dna = list(genes)
             self.population.append((dna, self.__assess_fitness(dna)))
         self.population = sorted(self.population, key=lambda x : x[1])
-        
-    def __choose_random_parent(self):
-        inverse_costs = [0] * len(self.population)
-        for i in xrange(len(self.population)):
-            inverse_costs[i] = 1/self.population[i][1]
-        a = uniform(0, sum(inverse_costs))
-        j = 0
-        while a > inverse_costs[j]: 
-            a -= inverse_costs[j]
-            j += 1
-        return self.population[j]
         
     def __assess_fitness(self, genome):
         cost = distances[self.depot_id][genome[0]]
@@ -57,95 +46,67 @@ class cvrp_solver:
         cost += distances[genome[-1]][self.depot_id]
         return cost
         
+    def __choose_random_parent(self):
+        weights = [0] * len(self.population)
+        for i in xrange(len(self.population)):
+            weights[i] = 1/self.population[i][1]
+        a = uniform(0, sum(weights))
+        j = 0
+        while a > weights[j]: 
+            a -= weights[j]
+            j += 1
+        return self.population[j]
+        
+    def __reproduce_crossover(self, p1_genome, p2_genome):
+        # Produces an offspring using crossover
+        a = randint(0, len(p1_genome)-1)
+        b = randint(0, len(p1_genome)-1)
+        while a == b:
+            b = randint(0, len(p1_genome))
+        if a > b:
+            a,b = b,a
+        pre_result = p1_genome[:a] + p2_genome[a:b] + p1_genome[a:]
+        result = []
+        for i in xrange(len(pre_result)):
+            if not (pre_result[i] in result):
+                result.append(pre_result[i])
+        return result
+        
+    def __reproduce_mutation(self, genome):
+        # Produces an offspring using mutation
+        result = list(genome)
+        gene = result.pop(randint(0, len(genome)-1))
+        result.insert(randint(0, len(genome)-1), gene)
+        return result
+        
     def evolve(self):
         new_population = []
         
         # Crossover
-        for i in xrange(len(self.population)):
+        for i in xrange(self.population_size):
             # Select parents via proportional roulette
             parent1 = self.__choose_random_parent()
             parent2 = self.__choose_random_parent()
             while parent2 == parent1:
                 # Ensure no asexual breeding
                 parent2 = self.__choose_random_parent()
-            
-            start_crossover_cycle = randint(0, len(parent1[0])-1)
-            '''
-            while parent1[0][start_crossover_cycle] == parent2[0][start_crossover_cycle]:
-                # Make sure the crossover would actually change something
-                start_crossover_cycle = randint(0, len(parent1[0])-1)
-            '''
-            
-            # cyclic crossover for first direction
-            child_dna = list(parent1[0])
-            gene_buffer, child_dna[start_crossover_cycle] = child_dna[start_crossover_cycle], -1
-            loc = find_in_list(parent2[0], gene_buffer)
-            while child_dna[loc] != -1:
-                child_dna[loc], gene_buffer = gene_buffer, child_dna[loc]
-                loc = find_in_list(parent2[0], gene_buffer)
-            child_dna[loc] = gene_buffer
-            # DEBUG
-            assert not (-1 in child_dna)
-            for j in xrange(len(child_dna)):
-                assert child_dna[j] == parent1[0][j] or child_dna[j] == parent2[0][j]
-            '''
-            # If we already have this genome in the population...
-            if child_dna in [x[0] for x in self.population + new_population]:
-                # The child is dunked in radioactive waste and has its genes shuffled
-                shuffle(child_dna)
-            '''
-            # Add it to the population
-            new_population.append((child_dna, self.__assess_fitness(child_dna)))
-            
-             # cyclic crossover for second direction
-            child_dna = list(parent2[0])
-            gene_buffer, child_dna[start_crossover_cycle] = child_dna[start_crossover_cycle], -1
-            loc = find_in_list(parent1[0], gene_buffer)
-            while child_dna[loc] != -1:
-                child_dna[loc], gene_buffer = gene_buffer, child_dna[loc]
-                loc = find_in_list(parent1[0], gene_buffer)
-            child_dna[loc] = gene_buffer
-            assert not (-1 in child_dna)
-            for j in xrange(len(child_dna)):
-                assert child_dna[j] == parent1[0][j] or child_dna[j] == parent2[0][j]
-            '''
-            if child_dna in [x[0] for x in self.population + new_population]:
-                shuffle(child_dna)
-            '''
+            child_dna = self.__reproduce_crossover(parent1[0], parent2[0])
             new_population.append((child_dna, self.__assess_fitness(child_dna)))
             
         # Mutate
-        total_genes = sum([len(x[0]) for x in new_population])
-        fitness_range = self.population[-1][1] - self.population[0][1]
-        if fitness_range == 0:
-            fitness_range = 1
-        diversity_reinvigorator = self.population[0][1] / fitness_range
-        num_mutations = int(self.mutate_rate * total_genes * diversity_reinvigorator)
-        for i in xrange(num_mutations):
-            # Select a random genome to mutate
-            genome = list(choice(new_population)[0])
-            # Perform cyclic mutation
-            gene = genome.pop(randint(0, len(genome)-1))
-            genome.insert(randint(0, len(genome)-1), gene)
-            new_population.append((genome, self.__assess_fitness(genome)))
+        for i in xrange(self.mutate_rate):
+            child_dna = self.__reproduce_mutation(choice(new_population)[0])
+            new_population.append((child_dna, self.__assess_fitness(child_dna)))
             
-        #if self.generation % 10 == 0:
-            #print "\nold"
-            #print [x[1] for x in self.population]
-            #print "new"
-            #print [x[1] for x in new_population]
         # Add children to the old population and assess their fitness
-        #new_population.append(self.population[0])
         new_population += self.population
         
         # Mutate recurrences
         self.population = []
         for x in new_population:
             if x in self.population:
-                genome = x[0]
-                gene = genome.pop(randint(0, len(genome)-1))
-                genome.insert(randint(0, len(genome)-1), gene)
-                self.population.append((genome, self.__assess_fitness(genome)))
+                chid_dna = self.__reproduce_mutation(x[0])
+                self.population.append((chid_dna, self.__assess_fitness(chid_dna)))
             else:
                 self.population.append(x)
         
@@ -205,81 +166,27 @@ class cvrp_solver:
         
 def normal_mode():
     solver = cvrp_solver(10)
-    for i in xrange(10000):
+    while True:
         solver.evolve()
         if solver.generation % 100 == 0:
             solver.print_stats()
             solver.print_best_to_file()
-    print solver.population[0]
-    solver.print_best_to_file()
-        
-def combo_mode():
-    print "Start with multi solver"
-    solvers = []
-    for i in xrange(10):
-        solvers.append(cvrp_solver(10))
     
-    for i in xrange(1000):
-        for x in solvers:
-            x.evolve()
-            if x.generation % 100 == 0:
-                x.print_stats()
-                x.print_best_to_file()
-        if solvers[0].generation % 100 == 0:
-            print ""
-                
-    print "Reduce to single solver"
-    solver = cvrp_solver(10)
-    solver.population = []
-    for x in solvers:
-        solver.population += x.population
-    solver.population = sorted(solver.population, key=lambda x : x[1])
-    
-    for i in xrange(1000):
-        solver.evolve()
-        if solver.generation % 100 == 0:
-            solver.print_stats()
-            solver.print_best_to_file()
-    print solver.population[0]
-    solver.print_best_to_file()
-        
-def fold_mode():
-    print "Start with folding solver"
-    solvers = []
-    for i in xrange(256):
-        solvers.append(cvrp_solver(10))
-    
-    iteration_const = 512
-    while len(solvers) > 1:
-        iterations = iteration_const / len(solvers)
-        for i in xrange(iterations):
-            print i
-            for x in solvers:
-                x.evolve()
-            if i == iterations - 1:
-                for x in solvers:
-                    x.print_stats()
-                    x.print_best_to_file()
-                print ""
-        # Fold
-        num_solvers = len(solvers) / 2
-        if 2 * num_solvers < len(solvers):
-            num_solvers += 1
-        for i in xrange(num_solvers):
-            if i + num_solvers < len(solvers):
-                solvers[i].population += solvers[i + num_solvers].population
-                solvers[i].population = sorted(solvers[i].population, key=lambda x : x[1])
-        solvers = solvers[:num_solvers]
-                
-    solver = solvers[0]
-    for i in xrange(1000):
-        solver.evolve()
-        if solver.generation % 100 == 0:
-            solver.print_stats()
-            solver.print_best_to_file()
-    print solver.population[0]
-    solver.print_best_to_file()
+def self_reboot_mode():
+    while True:
+        solver = cvrp_solver(10)
+        best = solver.population[0][1]
+        change_count = 0
+        while change_count < 20:
+            solver.evolve()
+            if solver.generation % 100 == 0:
+                solver.print_stats()
+                solver.print_best_to_file()
+                change_count += 1
+                if solver.population[0][1] < best:
+                    change_count = 0
+                    best = solver.population[0][1]
         
 if __name__ == "__main__":
-    normal_mode()
+    self_reboot_mode()
     
