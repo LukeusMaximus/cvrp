@@ -63,14 +63,12 @@ class cvrp_solver:
         # Crossover
         for i in xrange(len(self.population)):
             # Select parents via proportional roulette
-            parent1 = self.population[i]
+            parent1 = self.__choose_random_parent()
             parent2 = self.__choose_random_parent()
-            
-            '''
             while parent2 == parent1:
                 # Ensure no asexual breeding
                 parent2 = self.__choose_random_parent()
-            '''
+            
             start_crossover_cycle = randint(0, len(parent1[0])-1)
             '''
             while parent1[0][start_crossover_cycle] == parent2[0][start_crossover_cycle]:
@@ -136,7 +134,8 @@ class cvrp_solver:
             #print [x[1] for x in self.population]
             #print "new"
             #print [x[1] for x in new_population]
-        # Add children to the old population and assess their fitness        
+        # Add children to the old population and assess their fitness
+        #new_population.append(self.population[0])
         new_population += self.population
         
         # Mutate recurrences
@@ -220,22 +219,60 @@ def combo_mode():
     for i in xrange(10):
         solvers.append(cvrp_solver(10))
     
-    for i in xrange(5000):
+    for i in xrange(1000):
         for x in solvers:
             x.evolve()
             if x.generation % 100 == 0:
                 x.print_stats()
                 x.print_best_to_file()
         if solvers[0].generation % 100 == 0:
-            print "\n"
+            print ""
                 
     print "Reduce to single solver"
     solver = cvrp_solver(10)
     solver.population = []
     for x in solvers:
         solver.population += x.population
+    solver.population = sorted(solver.population, key=lambda x : x[1])
     
-    for i in xrange(5000):
+    for i in xrange(1000):
+        solver.evolve()
+        if solver.generation % 100 == 0:
+            solver.print_stats()
+            solver.print_best_to_file()
+    print solver.population[0]
+    solver.print_best_to_file()
+        
+def fold_mode():
+    print "Start with folding solver"
+    solvers = []
+    for i in xrange(256):
+        solvers.append(cvrp_solver(10))
+    
+    iteration_const = 512
+    while len(solvers) > 1:
+        iterations = iteration_const / len(solvers)
+        for i in xrange(iterations):
+            print i
+            for x in solvers:
+                x.evolve()
+            if i == iterations - 1:
+                for x in solvers:
+                    x.print_stats()
+                    x.print_best_to_file()
+                print ""
+        # Fold
+        num_solvers = len(solvers) / 2
+        if 2 * num_solvers < len(solvers):
+            num_solvers += 1
+        for i in xrange(num_solvers):
+            if i + num_solvers < len(solvers):
+                solvers[i].population += solvers[i + num_solvers].population
+                solvers[i].population = sorted(solvers[i].population, key=lambda x : x[1])
+        solvers = solvers[:num_solvers]
+                
+    solver = solvers[0]
+    for i in xrange(1000):
         solver.evolve()
         if solver.generation % 100 == 0:
             solver.print_stats()
@@ -244,5 +281,5 @@ def combo_mode():
     solver.print_best_to_file()
         
 if __name__ == "__main__":
-    combo_mode()
+    normal_mode()
     
