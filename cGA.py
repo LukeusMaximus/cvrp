@@ -1,6 +1,6 @@
 from distances import distances
 from capacities import capacities
-from random import shuffle, uniform
+from random import shuffle, uniform, choice
 
 class cGA_solver():
     def __init__(self):
@@ -68,6 +68,41 @@ class cGA_solver():
         return self.cells[x][y], selected
     
     def __crossover_parents(self, parents):
+        genome1 = parents[0][0]
+        genome2 = parents[1][0]
+        adjacent = {1:[]}
+        for x in genome1:
+            adjacent[x] = []
+        temp = [1] + genome1 + [1] + genome[2] + [1]
+        for i in xrange(1,len(temp)-1):
+            if not (temp[i+1] in adjacent[temp[i]])
+                adjacent[temp[i]].append(temp[i+1])
+            if not (temp[i-1] in adjacent[temp[i]])
+                adjacent[temp[i]].append(temp[i-1])
+        # Perhaps move edges from 77 - 82 into 1 here
+        genome3 = [choice(genome1)]
+        remaining = genome1
+        remaining.remove(genome3[-1])
+        for x in adjacent:
+            adjacent[x].remove(genome3[0])
+        while len(genome3) < len(genome1):
+            if len(adjacent[genome3[-1]]) > 0:
+                shortest = None
+                shortest_len = self.dim + self.routes + 2
+                for x in adjacent[genome3[-1]]:
+                    if len(adjacent[x]) < shortest_len:
+                        shortest = x
+                        shortes_len = len(adjacent[x])
+                assert shortest != None
+                genome3.append(shortest)
+                remaining.remove(genome3[-1])
+            else:
+                genome3.append(choice(remaining))
+                remaining.remove(genome3[-1])
+            for x in adjacent:
+                adjacent[x].remove(genome3[-1])
+            assert len(remaining) + len(genome3)
+        return genome3
         
     
     def solve():
