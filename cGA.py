@@ -1,6 +1,12 @@
 from distances import distances
 from capacities import capacities
-from random import shuffle, uniform, choice
+from random import shuffle, uniform, choice, randint
+
+# Implements the algorithm described in
+#
+# Solving the Vehicle Routing Problem by Using Cellular Genetic Algorithms
+#                                 by
+#                    Enrique Alba and Bernab Dorronsoro
 
 class cGA_solver():
     def __init__(self):
@@ -13,11 +19,14 @@ class cGA_solver():
         
         #fitness
         self.capacity = 220
-        self.overcap_weight = 10
-        self.f_max = sum([sum([distances[x][y] for y in distances[x]]) for x in distances])
+        self.overcap_weight = 1000
+        self.f_max = 10**7
         
         #parent selection
         self.p = 0.3
+        
+        #mutation
+        self.mutate_prob = 0.003
         
         #toroidal cell grid
         self.width = 10
@@ -27,10 +36,10 @@ class cGA_solver():
         for x in xrange(self.width):
             for y in xrange(self.height):
                 shuffle(genes)
-                self.cells[x][y][0] = list(genes)
-                self.cells[x][y][1] = self.__evaluate_fitness(self.cells[x][y][0])
+                genome = list(genes)
+                self.cells[x][y] = (genome, self.__evaluate_fitness(genome))
                 
-    def __evaluate_fitenss(self, genome):
+    def __evaluate_fitness(self, genome):
         cost = 0
         previous = 1
         over_cap = 0
@@ -58,7 +67,7 @@ class cGA_solver():
         candidates.reverse()
         selected = None
         i = 0
-        while selected = None:
+        while selected == None:
             if uniform(0,1) < self.p:
                 selected = candidates[i]
             if i == len(candidates) - 1:
@@ -70,21 +79,27 @@ class cGA_solver():
     def __crossover_parents(self, parents):
         genome1 = parents[0][0]
         genome2 = parents[1][0]
-        adjacent = {1:[]}
+        assert len(genome1) == self.dim + self.routes - 1
+        assert len(genome2) == self.dim + self.routes - 1
+        adjacent = {}
         for x in genome1:
             adjacent[x] = []
-        temp = [1] + genome1 + [1] + genome[2] + [1]
-        for i in xrange(1,len(temp)-1):
-            if not (temp[i+1] in adjacent[temp[i]])
-                adjacent[temp[i]].append(temp[i+1])
-            if not (temp[i-1] in adjacent[temp[i]])
-                adjacent[temp[i]].append(temp[i-1])
-        # Perhaps move edges from 77 - 82 into 1 here
+        for i in xrange(1,len(genome1)-1):
+            if not (genome1[i+1] in adjacent[genome1[i]]):
+                adjacent[genome1[i]].append(genome1[i+1])
+            if not (genome1[i-1] in adjacent[genome1[i]]):
+                adjacent[genome1[i]].append(genome1[i-1])
+        for i in xrange(1,len(genome2)-1):
+            if not (genome2[i+1] in adjacent[genome2[i]]):
+                adjacent[genome2[i]].append(genome2[i+1])
+            if not (genome2[i-1] in adjacent[genome2[i]]):
+                adjacent[genome2[i]].append(genome2[i-1])
         genome3 = [choice(genome1)]
-        remaining = genome1
+        remaining = list(genome1)
         remaining.remove(genome3[-1])
         for x in adjacent:
-            adjacent[x].remove(genome3[0])
+            if genome3[0] in adjacent[x]:
+                adjacent[x].remove(genome3[0])
         while len(genome3) < len(genome1):
             if len(adjacent[genome3[-1]]) > 0:
                 shortest = None
@@ -100,24 +115,105 @@ class cGA_solver():
                 genome3.append(choice(remaining))
                 remaining.remove(genome3[-1])
             for x in adjacent:
-                adjacent[x].remove(genome3[-1])
-            assert len(remaining) + len(genome3)
+                if genome3[-1] in adjacent[x]:
+                    adjacent[x].remove(genome3[-1])
+            assert len(remaining) + len(genome3) == len(genome1)
         return genome3
         
+    def __mutate_genome(self, genome):
+        for i in xrange(0, len(genome)):
+            if uniform(0, 1) < self.mutate_prob:
+                op = randint(0, 2)
+                r = randint(0, len(genome)-1)
+                if op == 0:
+                    #insert
+                    genome.insert(r, genome.pop(i))
+                elif op == 2:
+                    #swap
+                    genome[r], genome[i] = genome[i], genome[r]
+                else:
+                    #invert
+                    a, b = i, r
+                    if a > b:
+                        a, b = b, a
+                    cut = genome[a:b]
+                    cut.reverse()
+                    genome = genome[:a] + cut + genome[b:]
+        return genome
     
-    def solve():
+    def __local_search(self, genome):
+        #2-opt
+        
+        #lambda interchange
+        diff_routes = False
+        a = -1
+        b = -1
+        while not diff_routes:
+            a = randint(0, len(genome) - 1)
+            while a > self.dim + 1:
+                a = randint(0, len(genome) - 1)
+            b = randint(0, len(genome) - 1)
+            while b > self.dim + 1:
+                b = randint(0, len(genome) - 1)
+            a, b = min(a,b), max(a,b)
+            for i in xrange(a+1, b):
+                if genome[i] > self.dim + 1:
+                    diff_routes = True
+        genome[a], genome[b] = genome[b], genome[a]
+    
+    def print_best_to_file(self, genome, fitness):
+        routes = []
+        current_route = [1]
+        for i in xrange(len(genome)):
+            if genome[i] > self.dim + 1:
+                current_route.append(1)
+                routes.append(current_route)
+                current_route = [1]
+            else:
+                current_route.append(genome[i])
+        current_route.append(1)
+        routes.append(current_route)
+        
+        cost_str = str(fitness)
+        dpp = cost_str.find(".")
+        cost_str = cost_str[:dpp+4]
+        best_file = open("solutions/best_sol_" + cost_str, "w")
+        best_file.write("login lm9131\n")
+        best_file.write("cost " + cost_str + "\n")
+        for i in xrange(len(routes)): 
+            s = ""
+            for x in routes[i]:
+                if s != "":
+                    s += "->"
+                s += str(x)
+            best_file.write(s + "\n")
+        best_file.close()
+    
+    def solve(self):
+        best = None
+        best_fitness = 0
         for s in xrange(self.max_steps):
+            aux_pop = [[([],0) for i in xrange(self.height)] for j in xrange(self.width)]
             for x in xrange(self.width):
                 for y in xrange(self.height):
                     parents = self.__select_parents(x, y)
-                    #aux indiv = Recombination(cga.Pc,parents);
-                    #aux indiv = Mutation(cga.Pm,aux indiv);
+                    aux_indiv = self.__crossover_parents(parents)
+                    aux_indiv = self.__mutate_genome(aux_indiv)
                     #aux indiv = Local Search(cga.Pl,aux indiv);
-                    #Evaluate Fitness(aux indiv);
-                    #Insert If Better(position(x,y),aux indiv,cga,aux pop);
-            #cga.pop = aux pop;
-            #Update Statistics(cga);
+                    fitness = self.__evaluate_fitness(aux_indiv)
+                    if fitness > self.cells[x][y][1]:
+                        aux_pop[x][y] = (aux_indiv, fitness)
+                        if fitness > best_fitness:
+                            best = aux_indiv
+                            best_fitness = fitness
+                    else:
+                        aux_pop[x][y] = self.cells[x][y]
+            self.cells = aux_pop;
+            if s % 100 == 0:
+                print best, best_fitness, self.f_max-best_fitness
+                self.print_best_to_file(best, best_fitness)
 
 
 if __name__ == "__main__":
-    pass
+    solver = cGA_solver()
+    solver.solve()
