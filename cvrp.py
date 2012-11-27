@@ -123,7 +123,7 @@ class cvrp_solver:
         best = self.population[0][1]
         worst = self.population[-1][1]
         val_range = worst - best
-        print str(self.generation) + ":", "best:", best, "worst:", worst, "range:", val_range
+        print self.generation, best
         
     def print_best_to_file(self):
         genome = self.population[0][0]
@@ -165,11 +165,14 @@ class cvrp_solver:
         best_file.close()
         
 def normal_mode():
+    start = time.time()
     solver = cvrp_solver(10)
-    while True:
+    this_point = 0
+    while this_point < 600:
         solver.evolve()
-        if solver.generation % 100 == 0:
-            solver.print_stats()
+        if time.time()-start > this_point:
+            print this_point, solver.population[0][1]
+            this_point += 3
             solver.print_best_to_file()
     
 def self_reboot_mode():
@@ -188,5 +191,5 @@ def self_reboot_mode():
                     best = solver.population[0][1]
         
 if __name__ == "__main__":
-    self_reboot_mode()
+    normal_mode()
     

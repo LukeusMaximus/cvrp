@@ -1,6 +1,7 @@
 from distances import distances
 from capacities import capacities
 from random import shuffle, uniform, choice, randint
+import time
 
 # Implements the algorithm described in
 #
@@ -16,6 +17,8 @@ class cGA_solver2():
         self.lmb = 1
         self.dim = 75
         self.routes = 7
+        self.best = None
+        self.best_fitness = -1
         
         #fitness
         self.capacity = 220
@@ -180,9 +183,9 @@ class cGA_solver2():
         best_file.close()
     
     def solve(self):
-        best = None
-        best_fitness = -1
-        for s in xrange(self.max_steps):
+        start = time.time()
+        this_point = 0
+        while this_point < 600:
             aux_pop = [[([],0) for i in xrange(self.height)] for j in xrange(self.width)]
             for x in xrange(self.width):
                 for y in xrange(self.height):
@@ -206,18 +209,19 @@ class cGA_solver2():
                     trial_best = sorted(trial_genomes, key = lambda x : x[1])[0]
                     if trial_best[1] < self.cells[x][y][1]:
                         aux_pop[x][y] = trial_best
-                        if trial_best[1] < best_fitness or best == None:
-                            best = trial_best[0]
-                            best_fitness = trial_best[1]
+                        if trial_best[1] < self.best_fitness or self.best == None:
+                            self.best = trial_best[0]
+                            self.best_fitness = trial_best[1]
                     else:
                         aux_pop[x][y] = self.cells[x][y]
             self.cells = aux_pop;
-            if s % 100 == 0:
-                print best_fitness
-                self.print_best_to_file(best, best_fitness)
-
+            if time.time()-start > this_point:
+                print this_point, self.best_fitness
+                this_point += 3
+        print self.best_fitness
+        self.print_best_to_file(self.best, self.best_fitness)
 
 if __name__ == "__main__":
-    for i in xrange(10):
+    for i in xrange(1):
         solver = cGA_solver2()
         solver.solve()

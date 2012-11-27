@@ -1,6 +1,7 @@
 from distances import distances
 from capacities import capacities
 from random import shuffle, uniform, choice, randint
+import time
 
 # Implements the algorithm described in
 #
@@ -11,7 +12,7 @@ from random import shuffle, uniform, choice, randint
 class cGA_solver():
     def __init__(self):
         #general
-        self.max_steps = 10000
+        self.max_steps = 2000
         self.opt = 2
         self.lmb = 1
         self.dim = 75
@@ -192,7 +193,9 @@ class cGA_solver():
     def solve(self):
         best = None
         best_fitness = 0
-        for s in xrange(self.max_steps):
+        start = time.time()
+        this_point = 0
+        while this_point < 600:
             aux_pop = [[([],0) for i in xrange(self.height)] for j in xrange(self.width)]
             for x in xrange(self.width):
                 for y in xrange(self.height):
@@ -209,9 +212,9 @@ class cGA_solver():
                     else:
                         aux_pop[x][y] = self.cells[x][y]
             self.cells = aux_pop;
-            if s % 100 == 0:
-                print best, best_fitness, self.f_max-best_fitness
-                self.print_best_to_file(best, best_fitness)
+            if time.time()-start > this_point:
+                print this_point, self.f_max-best_fitness
+                this_point += 3
 
 
 if __name__ == "__main__":
